@@ -42,6 +42,8 @@ Betik `reference_baseline_results/` dizinine üç dosya yazar:
 - `reference_baseline_metrics.csv`: her yöntemin MAE (kWh), RMSE (kWh), R²,
   toplam test hedefi, 24 saatlik süreklilik durumu, değerlendirilen hedef sayısı ve
   kesintisiz adaylarda eksik geçmiş sayısı.
+- `reference_baseline_common_metrics.csv`: üç yöntemi ortak geçerli test hedefleri üzerinde
+  karşılaştıran MAE, RMSE ve R² tablosu.
 - `reference_baseline_predictions.csv`: her test hedefinin zaman damgası, gerçek
   tüketimi, üç referans zaman damgası/tahmini, geçmiş bulunurluğu ve 24 giriş saati
   ile hedefin kesintisiz olma göstergesi.
