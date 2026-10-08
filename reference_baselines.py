@@ -288,13 +288,16 @@ def main() -> None:
     target_timestamps = pd.DatetimeIndex(test_df.index, name="target_timestamp")
     predictions = add_exact_references(hourly, target_timestamps)
     metrics, metric_audit = summarize_metrics(predictions, len(test_df))
+    common_metrics = pd.DataFrame(metric_audit["common_metrics"])
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = args.output_dir / "reference_baseline_metrics.csv"
+    common_metrics_path = args.output_dir / "reference_baseline_common_metrics.csv"
     predictions_path = args.output_dir / "reference_baseline_predictions.csv"
     summary_path = args.output_dir / "reference_baseline_run_summary.json"
 
     metrics.to_csv(metrics_path, index=False, float_format="%.10g")
+    common_metrics.to_csv(common_metrics_path, index=False, float_format="%.10g")
     predictions.to_csv(predictions_path, index=False, float_format="%.10g")
 
     audit.update(
@@ -339,6 +342,7 @@ def main() -> None:
             },
             "outputs": {
                 "metrics_csv": str(metrics_path),
+                "common_metrics_csv": str(common_metrics_path),
                 "predictions_csv": str(predictions_path),
                 "summary_json": str(summary_path),
             },
@@ -364,7 +368,7 @@ def main() -> None:
     print("\nBaseline metrics (kWh for MAE/RMSE; R² unitless)")
     print(metrics.to_string(index=False, float_format=lambda x: f"{x:.6f}"))
     print("\nCommon-target metrics")
-    print(pd.DataFrame(metric_audit["common_metrics"]).to_string(index=False))
+    print(common_metrics.to_string(index=False))
     print(f"\nSaved results under: {args.output_dir.resolve()}")
 
 
