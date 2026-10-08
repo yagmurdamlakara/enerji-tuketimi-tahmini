@@ -262,13 +262,11 @@ def verify_missing_hour_example() -> None:
     """Guard against treating rows around a missing hour as adjacent in time."""
     index = pd.date_range("2020-01-01 13:00", periods=5, freq="h")
     toy = pd.DataFrame({TARGET: [1.0, 2.0, 4.0, 5.0, 6.0]}, index=index.delete(2))
-    target_time = pd.DatetimeIndex([pd.Timestamp("2020-01-01 16:00")])
+    target_time = pd.DatetimeIndex([pd.Timestamp("2020-01-01 17:00")])
     check = add_exact_references(toy, target_time).iloc[0]
 
     assert check["persistence_prediction_kwh"] == 4.0
-    assert check["daily_24h_prediction_kwh"] != check["actual_kwh"] or pd.isna(
-        check["daily_24h_prediction_kwh"]
-    )
+    assert pd.isna(check["daily_24h_prediction_kwh"])
     assert not bool(check["continuous_24h_input_and_target"])
     print("Missing-hour check: exact lag lookup and continuity filter passed.")
 
