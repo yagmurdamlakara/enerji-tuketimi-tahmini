@@ -1,66 +1,85 @@
 # Referans yöntem değerlendirmesi
 
-Bu betik, `makale.ipynb` içindeki model eğitimi ve FPGA/HLS hücrelerini çalıştırmadan
-üç temel yöntemi değerlendirir:
+Bu betik model eğitmeden Persistence, 24 saat ve 168 saat referansları için MAE
+(kWh), RMSE (kWh), R² ve değerlendirilemeyen hedef sayılarını hesaplar.
+Hedef T için sırasıyla T−1, T−24 ve T−168 saat değerleri kullanılır.
+Saatler zaman damgasıyla eşleştirilir; eksik değer doldurulmaz.
 
-- Persistence: hedef saatten 1 saat önceki `Energy_kWh`
-- Günlük: hedef saatten 24 saat önceki `Energy_kWh`
-- Haftalık: hedef saatten 168 saat önceki `Energy_kWh`
+Ham veri hazırlama: dört elektriksel değişkenin saatlik ortalaması, üç alt sayacın
+saatlik toplamı ve her değişkende 60 gerçek dakika koşulu korunur.
+24+1 saat süreklilik kontrolü yalnızca tanısaldır: referans değerlendirmesinden
+ayrıca hedef elemez. Her yöntem sadece geçmiş karşılığı olmayan hedefleri dışlar.
+Ortak geçerli hedef tablosu ayrıca üretilir.
 
-Bütün referanslar tam zaman damgası eşleşmesiyle alınır. Saatlik eksikler doldurulmaz.
-Saatlik tablo; dört değişkende ortalama, üç alt sayaçta toplam ve her yedi değişkende
-saat başına 60 gerçek dakika şartıyla ham veriden yeniden hazırlanır.
+## 1. Hocanın istediği aynı model test hedefleri
 
-## Çalıştırma
+Model değerlendirmesinde gerçekten kullanılan zaman damgalarını içeren
+`model_test_targets.csv` dosyasını sağlayın. Zorunlu sütun `target_timestamp`;
+isteğe bağlı `actual_kwh` sağlanırsa temiz verideki değerlerle de doğrulanır.
 
-Depoyu indirin/klonlayın ve UCI veri dosyasını yerel makineye koyun. Ardından depo
-kökünde:
-
-```bash
-python -m pip install numpy pandas scikit-learn
-python reference_baselines.py --data household_power_consumption.txt
+```text
+target_timestamp,actual_kwh
 ```
 
-Dosya başka bir konumdaysa:
-
-```bash
-python reference_baselines.py --data "/tam/yol/household_power_consumption.txt" --output-dir reference_baseline_results
-```
-
-Google Colab’da yalnızca bu betiği ve veri hazırlama/değerlendirme akışını çalıştırın.
-`makale.ipynb` içindeki “Run all” düğmesini kullanmayın. Colab’da betiği ve veri
-dosyasını oturuma yükledikten sonra aynı komutu bir hücrede çalıştırın:
+Aşağıdaki hücre, YALNIZCA mevcut model değerlendirmesinde `y_test` ile
+`test_df` birebir aynı sıradaki hedefleri temsil ediyorsa kullanılabilir.
+Eski model sonuçlarıyla karşılaştırmak için bu değişkenler ve scaler aynı model
+çalıştırmasına ait olmalıdır. Yeni split üretip eski skorlarla karşılaştırmayın.
+Filtrelenmiş sequence kullanılıyorsa `test_df.index` yerine sequence oluştururken
+saklanan gerçek hedef zaman damgaları gereklidir; uzunluk eşitliği tek başına
+zaman eşleşmesini kanıtlamaz.
 
 ```python
-!python reference_baselines.py --data /content/household_power_consumption.txt
+import numpy as np
+import pandas as pd
+
+actual = target_scaler.inverse_transform(np.asarray(y_test).reshape(-1, 1)).ravel()
+assert len(actual) == len(test_df), "Gerçek sequence hedef zamanlarını kullanın."
+assert np.allclose(actual, test_df['Energy_kWh'].to_numpy(), rtol=1e-5, atol=1e-6)
+pd.DataFrame({
+    'target_timestamp': test_df.index,
+    'actual_kwh': actual,
+}).to_csv('/content/model_test_targets.csv', index=False)
 ```
 
-## Üretilen dosyalar
+Betiği ve ham veri dosyasını Colab'a yükledikten sonra:
 
-Betik `reference_baseline_results/` dizinine üç dosya yazar:
+```python
+!python reference_baselines.py --data /content/household_power_consumption.txt --test-targets /content/model_test_targets.csv
+```
 
-- `reference_baseline_metrics.csv`: her yöntemin MAE (kWh), RMSE (kWh), R²,
-  toplam test hedefi, 24 saatlik süreklilik durumu, değerlendirilen hedef sayısı ve
-  kesintisiz adaylarda eksik geçmiş sayısı.
-- `reference_baseline_common_metrics.csv`: üç yöntemi ortak geçerli test hedefleri üzerinde
-  karşılaştıran MAE, RMSE ve R² tablosu.
-- `reference_baseline_predictions.csv`: her test hedefinin zaman damgası, gerçek
-  tüketimi, üç referans zaman damgası/tahmini, geçmiş bulunurluğu ve 24 giriş saati
-  ile hedefin kesintisiz olma göstergesi.
-- `reference_baseline_run_summary.json`: ham/saatlik satır sayıları, split tarihleri,
-  süreklilik denetimi ve eski test döneminin kaynakta doğrulanıp doğrulanamadığı.
+CSV hedefleri temiz veride yoksa veya verilen gerçek değerlerle uyuşmuyorsa betik
+hata verir; hedefleri sessizce silmez. Test kimliğinin kaynağı kullanıcı tarafından
+sağlanan CSV'dir; betik eski model tarihlerini tahmin etmez.
 
-Ana metrikler sadece 24 giriş saati ile hedefi kesintisiz olan test hedeflerinde
-hesaplanır. Süreklilik nedeniyle elenen adaylar ve bu kesintisiz adaylarda referans
-geçmişi olmayan hedefler ayrı raporlanır. Ek ortak hedef metriği, üç yöntemin de
-geçmiş karşılığı bulunan aynı hedef alt kümesini karşılaştırır.
+## 2. Güncel temiz veri için ayrı referans hesabı
 
-Split, kabul edilmiş temizleme işleminden sonra notebook’ta tanımlı kronolojik
-%70/%15/%15 satır oranını yeniden uygular. Temizleme satır sayısını değiştirebildiği
-için bu test tarihleri eski deney tarihleriyle otomatik olarak aynı kabul edilmez.
-Özet JSON bu belirsizliği açıkça kaydeder. 5 Ekim doğrulama sayılarıyla fark varsa
-betik satır kesmez; gözlenen farkı ve sayıları raporlar.
+Eski model test zamanları elinizde yoksa, aşağıdaki açık seçenek yeni
+%70/%15/%15 bölmesiyle hesaplama yapar. Bu sonuç eski modellerle aynı test kümesi
+olarak sunulamaz; çalıştırma çıktısında ve JSON'da bu durum belirtilir.
 
-Betik başlarken küçük bir eksik-saat örneğiyle gerçek zaman gecikmesi ve kesintisizlik
-kontrolünü doğrular. Veri dosyası yoksa anlaşılır bir hata verir. Hiçbir model eğitimi,
-seed araması, latency veya HLS deneyi çalıştırmaz.
+```python
+!python reference_baselines.py --data /content/household_power_consumption.txt --cleaned-ratio
+```
+
+İki seçenekten tam biri zorunludur. Yerel Python'da komutun başındaki `!` kaldırılır.
+Gerekli paketler: `numpy`, `pandas`, `scikit-learn`.
+
+## Çıktılar
+
+Varsayılan `reference_baseline_results/` klasöründeki dört dosya:
+
+- `reference_baseline_metrics.csv`: ana üç yöntem tablosu, toplam/değerlendirilen
+  hedefler, `missing_history_targets` ve tanısal süreklilik sayıları.
+- `reference_baseline_common_metrics.csv`: üç yöntemin ortak geçerli hedefleri.
+- `reference_baseline_predictions.csv`: hedef ve geçmiş zamanları, gerçek değerler,
+  tahminler ve kullanılabilirlik göstergeleri.
+- `reference_baseline_run_summary.json`: veri, test dönemi ve değerlendirme denetimi.
+
+`continuity_invalid_targets` yalnızca bilgi verir; elenen örnek sayısı değildir.
+Her yöntem için `evaluated_targets + missing_history_targets = test_targets_total`.
+Ortak hedef yoksa ortak metrikler NaN olur; ana tablo yine kaydedilir.
+`--output-dir` ile ayrı sonuç klasörü seçilebilir.
+
+Notebook'un tamamını çalıştırmayın. Bu betik model eğitimi, FPGA/HLS deneyi veya
+makale değişikliği yapmaz. Ham veri ve eski model test hedefleri depoya eklenmez.
