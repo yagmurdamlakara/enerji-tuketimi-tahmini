@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Evaluate time-aligned persistence baselines without training any model.
 
-Usage:
-    python reference_baselines.py --data household_power_consumption.txt
-    python reference_baselines.py --data /path/to/household_power_consumption.txt --output-dir results
-
-The test split follows the notebook's chronological 70% / 15% / 15% row split
-after applying the accepted 60-valid-minute hourly filter. Reference values
-are looked up by exact timestamp; no missing hours are filled.
+Use --test-targets CSV for model-aligned evaluation, or explicitly select
+--cleaned-ratio for a new 70/15/15 split that is not comparable to old scores.
+CSV columns: target_timestamp, actual_kwh (optional, checked if present).
+Exact timestamp lookups; no interpolation and no extra continuity exclusions.
 """
 
 from __future__ import annotations
@@ -61,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         default=Path("reference_baseline_results"),
         help="Directory for the metrics, predictions, and audit summary.",
     )
+    selection = parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--test-targets", type=Path,
+                           help="CSV of the actual model evaluation targets.")
+    selection.add_argument("--cleaned-ratio", action="store_true",
+                           help="Explicitly use a NEW cleaned-data 70/15/15 split.")
     return parser.parse_args()
 
 
@@ -193,23 +195,26 @@ def safe_r2(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def summarize_metrics(
     predictions: pd.DataFrame, candidate_count: int
-) -> tuple[pd.DataFrame, dict[str, int]]:
-    """Score each baseline on continuous windows and report exclusions separately."""
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Score supplied targets when history exists; continuity is diagnostic only."""
     continuous = predictions["continuous_24h_input_and_target"]
     continuity_valid_count = int(continuous.sum())
     continuity_invalid_count = int(candidate_count - continuity_valid_count)
 
+    if predictions["actual_kwh"].isna().any():
+        raise ValueError("Some supplied test targets are absent from cleaned data; "
+                         "do not silently alter the model evaluation set.")
     rows = []
     evaluated_by_method: dict[str, np.ndarray] = {}
     for method in METHOD_LAGS:
         prediction_column = f"{method}_prediction_kwh"
         has_reference = predictions[f"{method}_history_available"]
-        evaluated = continuous & has_reference
+        evaluated = has_reference
         y_true = predictions.loc[evaluated, "actual_kwh"].to_numpy(dtype=float)
         y_pred = predictions.loc[evaluated, prediction_column].to_numpy(dtype=float)
         evaluated_by_method[method] = evaluated.to_numpy()
 
-        missing_history = int((continuous & ~has_reference).sum())
+        missing_history = int((~has_reference).sum())
         rows.append(
             {
                 "method": method,
@@ -218,7 +223,7 @@ def summarize_metrics(
                 "continuity_valid_targets": continuity_valid_count,
                 "continuity_invalid_targets": continuity_invalid_count,
                 "evaluated_targets": int(evaluated.sum()),
-                "missing_history_within_continuous_targets": missing_history,
+                "missing_history_targets": missing_history,
                 "MAE_kWh": (
                     float(mean_absolute_error(y_true, y_pred))
                     if len(y_true)
@@ -244,8 +249,8 @@ def summarize_metrics(
             {
                 "method": method,
                 "common_evaluated_targets": int(common.sum()),
-                "MAE_kWh": float(mean_absolute_error(common_true, common_pred)),
-                "RMSE_kWh": float(np.sqrt(mean_squared_error(common_true, common_pred))),
+                "MAE_kWh": float(mean_absolute_error(common_true, common_pred)) if len(common_true) else float("nan"),
+                "RMSE_kWh": float(np.sqrt(mean_squared_error(common_true, common_pred))) if len(common_true) else float("nan"),
                 "R2": safe_r2(common_true, common_pred),
             }
         )
@@ -261,14 +266,16 @@ def summarize_metrics(
 def verify_missing_hour_example() -> None:
     """Guard against treating rows around a missing hour as adjacent in time."""
     index = pd.date_range("2020-01-01 13:00", periods=5, freq="h")
-    toy = pd.DataFrame({TARGET: [1.0, 2.0, 4.0, 5.0, 6.0]}, index=index.delete(2))
+    toy = pd.DataFrame({TARGET: [1.0, 2.0, 4.0, 5.0]}, index=index.delete(2))
     target_time = pd.DatetimeIndex([pd.Timestamp("2020-01-01 17:00")])
     check = add_exact_references(toy, target_time).iloc[0]
 
     assert check["persistence_prediction_kwh"] == 4.0
     assert pd.isna(check["daily_24h_prediction_kwh"])
     assert not bool(check["continuous_24h_input_and_target"])
-    print("Missing-hour check: exact lag lookup and continuity filter passed.")
+    missing = add_exact_references(toy, pd.DatetimeIndex([index[3]])).iloc[0]
+    assert pd.isna(missing["persistence_prediction_kwh"])
+    print("Missing-hour check: exact lag lookup and continuity diagnostic passed.")
 
 
 def main() -> None:
@@ -285,7 +292,33 @@ def main() -> None:
     if test_df.empty:
         raise ValueError("The chronological test split is empty.")
 
-    target_timestamps = pd.DatetimeIndex(test_df.index, name="target_timestamp")
+    if args.test_targets is not None:
+        supplied = pd.read_csv(args.test_targets)
+        if "target_timestamp" not in supplied or supplied.empty:
+            raise ValueError("CSV must contain a nonempty target_timestamp column.")
+        target_timestamps = pd.DatetimeIndex(
+            pd.to_datetime(supplied["target_timestamp"], errors="raise"),
+            name="target_timestamp")
+        if target_timestamps.hasnans or target_timestamps.has_duplicates:
+            raise ValueError("Test target timestamps must be valid and unique.")
+        if not target_timestamps.is_monotonic_increasing or target_timestamps.tz is not None:
+            raise ValueError("Use chronological, timezone-naive dataset timestamps.")
+        actual = hourly[TARGET].reindex(target_timestamps)
+        if actual.isna().any():
+            raise ValueError("Some model targets are not present in cleaned data.")
+        if "actual_kwh" in supplied:
+            expected = pd.to_numeric(supplied["actual_kwh"], errors="raise").to_numpy()
+            if not np.isfinite(expected).all() or not np.allclose(
+                    actual.to_numpy(), expected, rtol=1e-5, atol=1e-6):
+                raise ValueError("Model true targets differ from cleaned target values.")
+        test_df = hourly.loc[target_timestamps].copy()
+        split_description = "explicit model target timestamps from CSV"
+        comparison_note = "Aligned to supplied CSV; caller must supply the actual model evaluation targets."
+    else:
+        target_timestamps = pd.DatetimeIndex(test_df.index, name="target_timestamp")
+        split_description = "NEW chronological cleaned-data 70/15/15 row split"
+        comparison_note = "NOT verified against previous model targets; do not compare to old model scores."
+    print(comparison_note)
     predictions = add_exact_references(hourly, target_timestamps)
     metrics, metric_audit = summarize_metrics(predictions, len(test_df))
     common_metrics = pd.DataFrame(metric_audit["common_metrics"])
@@ -302,9 +335,10 @@ def main() -> None:
 
     audit.update(
         {
-            "split_rule": "chronological row split after 60-minute hourly filter",
-            "train_rows": train_end,
-            "validation_rows": validation_end - train_end,
+            "split_rule": split_description,
+            "test_targets_file": str(args.test_targets) if args.test_targets else None,
+            "train_rows": train_end if args.cleaned_ratio else None,
+            "validation_rows": validation_end - train_end if args.cleaned_ratio else None,
             "test_targets_total": int(len(test_df)),
             "test_start": str(test_df.index.min()),
             "test_end": str(test_df.index.max()),
@@ -312,10 +346,8 @@ def main() -> None:
                 "target timestamp minus exact elapsed hours; exact timestamp join"
             ),
             "historical_lookup_scope": "all retained hourly data before target time",
-            "old_experiment_test_boundary": (
-                "Not recoverable from the repository's tracked source; "
-                "this run's ratio-based test dates must not be claimed identical."
-            ),
+            "model_comparison_status": comparison_note,
+            "continuity_filter_applied": False,
             "continuity_audit": metric_audit,
             "expected_reference_checks": {
                 "retained_hours_34085": len(hourly) == EXPECTED_HOURLY_ROWS,
@@ -374,3 +406,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
