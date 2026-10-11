@@ -1,0 +1,87 @@
+{
+  "original_test_targets": 4945,
+  "common_test_targets": 4730,
+  "excluded_targets": 215,
+  "missing_history_by_method": {
+    "persistence": 0,
+    "daily_24h": 0,
+    "weekly_168h": 215
+  },
+  "first_common_target": "2010-04-18 21:00:00",
+  "last_common_target": "2010-11-26 20:00:00",
+  "model_aggregation": "Arithmetic mean of five per-seed metrics; predictions are not ensembled.",
+  "seeds": [
+    11,
+    22,
+    33,
+    44,
+    55
+  ],
+  "models": [
+    "MLP",
+    "LSTM",
+    "GRU",
+    "BiLSTM"
+  ],
+  "completed_prediction_files": 20,
+  "raw_sha256": "4259c9d7ece5dbee9ab8d53682baac68d791c864f0f64a52b4043cb3b90894b7",
+  "test_targets_sha256": "bc618829c95551c0ad0df22257d414dd579202a01f65f24d94fe9c44b3d6065b",
+  "input_file_sha256": {
+    "BiLSTM_seed_11_predictions.csv": "d34c8345a6f919db4220f07c4d4a158ac7449cd2ede88e09d3818fcf33844625",
+    "BiLSTM_seed_22_predictions.csv": "f57f252d0351e41e8f3bf6eda1b89d3526454b3a91307626459cd43151afc405",
+    "BiLSTM_seed_33_predictions.csv": "62cbf86373f482f06022be2ec952d2aff0e9165a92503f57cd055351627504a1",
+    "BiLSTM_seed_44_predictions.csv": "4c5bd2303f926dbea92249e0ee8d97ef4f8875b529cbcf7a3f4b37e98225a274",
+    "BiLSTM_seed_55_predictions.csv": "b4474c039a58becacf865dd30006a4cd20d0ba8e7647de9a211546c935932293",
+    "GRU_seed_11_predictions.csv": "de5303f02f61939dc216f2a9941087280265acb682a9bf070ea0044fda624cda",
+    "GRU_seed_22_predictions.csv": "58d60bf3cd71427cb1765d116fd252da51f36261125ad62ed374e6dd31fbabb8",
+    "GRU_seed_33_predictions.csv": "f5c993cfbf8466433f458838815afe2bc25391eb145340a343e433f0c3add0d0",
+    "GRU_seed_44_predictions.csv": "2d1b46c483ae1fbd7f4086af44344e553661d71658669488e5bca8843fd8dd7e",
+    "GRU_seed_55_predictions.csv": "e695b68440349d6abeecd95c144d4e536cdf7aa9f7a8f176f0100e0aa0caeef5",
+    "LSTM_seed_11_predictions.csv": "9ee4ded52bd37ffb0a970ad06265d144862b4a0bdfc7aef09a3dff4477ca5f8a",
+    "LSTM_seed_22_predictions.csv": "dba8c842ede897a623f20296e6774ad11f3ea5141b00ffcf73edd73475250845",
+    "LSTM_seed_33_predictions.csv": "d6759c57847f5d5ce3f65cd34bd1d86ab8fe3a2b50d5c131466a56b5ac25c3c8",
+    "LSTM_seed_44_predictions.csv": "98a7cab94ee49c5b3f4f8e73f3b2f4113f22fd15824c2359efa22e58a4210f50",
+    "LSTM_seed_55_predictions.csv": "2dd7f76ae4604dbe6df066fc7f8eee1134a6c7507ceb00bf216598c8256f7f81",
+    "MLP_seed_11_predictions.csv": "66cdd72df803ea256e256cde99ee62c67d4a2ae1ed46f99c7994959c000d1d80",
+    "MLP_seed_22_predictions.csv": "477dabf9a264688bf0c8fcfc1bef0270435f8abc7a2cf04373e4148a2da6e9e5",
+    "MLP_seed_33_predictions.csv": "bb38cbca4f0cf3e4f83c424de6b1f787a382a2d43bbce84b6b04f741eb4074ed",
+    "MLP_seed_44_predictions.csv": "df9778ab3bc03f54bfa02af221221bc5b7f5e09dc586496537c8f049a04fc874",
+    "MLP_seed_55_predictions.csv": "934cd790e50e9408d7ac660974ef433733f9dbddfdaf915b0a67aad6988ecd79"
+  },
+  "status": "complete",
+  "preprocessing": {
+    "raw_rows": 2075259,
+    "raw_start": "2006-12-16 17:24:00",
+    "raw_end": "2010-11-26 21:02:00",
+    "raw_missing_values_by_column": {
+      "Global_active_power": 25979,
+      "Global_reactive_power": 25979,
+      "Voltage": 25979,
+      "Global_intensity": 25979,
+      "Sub_metering_1": 25979,
+      "Sub_metering_2": 25979,
+      "Sub_metering_3": 25979
+    },
+    "hourly_bins_before_filter": 34589,
+    "hourly_rows_retained": 34085,
+    "hourly_rows_removed": 504,
+    "hourly_missing_cells_after_filter": 0,
+    "minimum_valid_minutes_per_variable": 60,
+    "hourly_rule": {
+      "mean": [
+        "Global_active_power",
+        "Global_reactive_power",
+        "Voltage",
+        "Global_intensity"
+      ],
+      "sum": [
+        "Sub_metering_1",
+        "Sub_metering_2",
+        "Sub_metering_3"
+      ],
+      "interpolation": "none"
+    },
+    "energy_definition": "Energy_kWh = hourly mean Global_active_power (kW) * 1 hour"
+  },
+  "common_targets_sha256": "92afcb398ffe3d247e1044923beadfc594701a3592fcb638bd0973a3466df895"
+}

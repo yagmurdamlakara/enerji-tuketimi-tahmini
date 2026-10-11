@@ -1,0 +1,3 @@
+Ortak timestamp sayısı: 4.730
+
+Bütün yöntemleri aynı 4.730 ortak test zaman damgasında karşılaştırdık. Modeller için her seed’in metriklerini bu kümede ayrı hesaplayıp beş seed’in ortalamasını aldık; LSTM, MAE 0,320910 kWh, RMSE 0,466462 kWh ve R² 0,563295 ile üç metrikte de en iyi sonucu verdi. Dört model de persistence referansından daha başarılı oldu; LSTM’nin MAE’si yaklaşık %16,3, RMSE’si %19,7 daha düşük çıktı. 24 ve 168 saatlik referansların R² değerleri negatif kaldı; bu kümede bir önceki saat değeri, günlük ve haftalık gecikmelerden daha güçlü bir referans oldu.

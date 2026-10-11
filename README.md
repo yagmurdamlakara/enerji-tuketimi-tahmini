@@ -6,6 +6,12 @@ Bu depo, veri ön işleme ve tahmin yöntemlerine ilişkin kodların değişikli
 
 ## Google Colab
 
+[Son ödevin ortak test karşılaştırmasını Colab'da aç](https://colab.research.google.com/github/yagmurdamlakara/enerji-tuketimi-tahmini/blob/main/common_test_comparison_colab.ipynb)
+
+Son ödev yeniden eğitim gerektirmez. Tamamlanmış eğitim klasörünü seçin;
+kayıtlı 20 tahmin dosyasından yedi yöntemin aynı zamanlardaki metriklerini hesaplayın.
+Uygulama ve doğrulanmış sonuçlar: [ortak test karşılaştırması](COMMON_TEST_COMPARISON.md).
+
 [Temiz veri model eğitimini Colab'da aç](https://colab.research.google.com/github/yagmurdamlakara/enerji-tuketimi-tahmini/blob/main/clean_data_models_colab.ipynb)
 
 T4 GPU seçin ve hücreleri sırayla çalıştırın. Ham `household_power_consumption.txt`
@@ -19,6 +25,8 @@ batch 256, shuffle=False, en çok 150 epoch ve patience=10'dur.
 
 ## Kod dosyaları
 
+- `common_test_comparison_colab.ipynb`: son ödevin Colab değerlendirme arayüzü.
+- `common_test_comparison.py`: kayıtlı tahminler ve baseline'lar için ortak test değerlendirmesi.
 - `clean_data_models_colab.ipynb`: Colab ve Drive çalıştırma arayüzü.
 - `clean_data_rerun.py`: veri hazırlama, eğitim ve sonuç kaydı.
 - `original_model_definitions.py`: mevcut model ve eğitim fonksiyonları.
