@@ -2,12 +2,14 @@
 Final multi-seed factory uses corrected BiLSTM. No architecture changes.
 The runner sets device explicitly before calling these functions.
 """
+
 import random
 import numpy as np
 import torch
 from torch import nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class MLPModel(nn.Module):
 
@@ -21,23 +23,18 @@ class MLPModel(nn.Module):
             nn.Flatten(),
             nn.Linear(flattened_size, 64),
             nn.ReLU(),
-
             nn.Linear(64, 32),
             nn.ReLU(),
-
-            nn.Linear(32, 1)
+            nn.Linear(32, 1),
         )
 
     def forward(self, x):
         return self.network(x)
 
+
 class LSTMModel(nn.Module):
 
-    def __init__(
-        self,
-        input_size,
-        hidden_size=64
-    ):
+    def __init__(self, input_size, hidden_size=64):
 
         super().__init__()
 
@@ -45,13 +42,10 @@ class LSTMModel(nn.Module):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=1,
-            batch_first=True
+            batch_first=True,
         )
 
-        self.fc = nn.Linear(
-            hidden_size,
-            1
-        )
+        self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, x):
 
@@ -60,19 +54,14 @@ class LSTMModel(nn.Module):
         # Son zaman adımının çıktısı
         last_output = lstm_out[:, -1, :]
 
-        prediction = self.fc(
-            last_output
-        )
+        prediction = self.fc(last_output)
 
         return prediction
 
+
 class GRUModel(nn.Module):
 
-    def __init__(
-        self,
-        input_size,
-        hidden_size=64
-    ):
+    def __init__(self, input_size, hidden_size=64):
 
         super().__init__()
 
@@ -80,13 +69,10 @@ class GRUModel(nn.Module):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=1,
-            batch_first=True
+            batch_first=True,
         )
 
-        self.fc = nn.Linear(
-            hidden_size,
-            1
-        )
+        self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, x):
 
@@ -99,13 +85,10 @@ class GRUModel(nn.Module):
 
         return prediction
 
+
 class BiLSTMModelCorrected(nn.Module):
 
-    def __init__(
-        self,
-        input_size,
-        hidden_size=64
-    ):
+    def __init__(self, input_size, hidden_size=64):
 
         super().__init__()
 
@@ -114,13 +97,10 @@ class BiLSTMModelCorrected(nn.Module):
             hidden_size=hidden_size,
             num_layers=1,
             batch_first=True,
-            bidirectional=True
+            bidirectional=True,
         )
 
-        self.fc = nn.Linear(
-            hidden_size * 2,
-            1
-        )
+        self.fc = nn.Linear(hidden_size * 2, 1)
 
     def forward(self, x):
 
@@ -135,30 +115,20 @@ class BiLSTMModelCorrected(nn.Module):
         forward_hidden = h_n[0]
         backward_hidden = h_n[1]
 
-        combined = torch.cat(
-            (forward_hidden, backward_hidden),
-            dim=1
-        )
+        combined = torch.cat((forward_hidden, backward_hidden), dim=1)
 
         prediction = self.fc(combined)
 
         return prediction
 
+
 def train_model(
-    model,
-    train_loader,
-    val_loader,
-    learning_rate=0.001,
-    max_epochs=100,
-    patience=10
+    model, train_loader, val_loader, learning_rate=0.001, max_epochs=100, patience=10
 ):
 
     criterion = nn.MSELoss()
 
-    optimizer = torch.optim.Adam(
-        model.parameters(),
-        lr=learning_rate
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     train_losses = []
     val_losses = []
@@ -187,23 +157,15 @@ def train_model(
 
             predictions = model(X_batch)
 
-            loss = criterion(
-                predictions,
-                y_batch
-            )
+            loss = criterion(predictions, y_batch)
 
             loss.backward()
 
             optimizer.step()
 
-            train_loss_sum += (
-                loss.item() * X_batch.size(0)
-            )
+            train_loss_sum += loss.item() * X_batch.size(0)
 
-        train_loss = (
-            train_loss_sum /
-            len(train_loader.dataset)
-        )
+        train_loss = train_loss_sum / len(train_loader.dataset)
 
         # ------------------
         # VALIDATION
@@ -222,19 +184,11 @@ def train_model(
 
                 predictions = model(X_batch)
 
-                loss = criterion(
-                    predictions,
-                    y_batch
-                )
+                loss = criterion(predictions, y_batch)
 
-                val_loss_sum += (
-                    loss.item() * X_batch.size(0)
-                )
+                val_loss_sum += loss.item() * X_batch.size(0)
 
-        val_loss = (
-            val_loss_sum /
-            len(val_loader.dataset)
-        )
+        val_loss = val_loss_sum / len(val_loader.dataset)
 
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -254,9 +208,7 @@ def train_model(
             best_val_loss = val_loss
 
             best_state = {
-                key: value.cpu().clone()
-                for key, value
-                in model.state_dict().items()
+                key: value.cpu().clone() for key, value in model.state_dict().items()
             }
 
             patience_counter = 0
@@ -267,10 +219,7 @@ def train_model(
 
         if patience_counter >= patience:
 
-            print(
-                f"\nEarly stopping: "
-                f"{epoch+1}. epoch"
-            )
+            print(f"\nEarly stopping: " f"{epoch+1}. epoch")
 
             break
 
@@ -279,11 +228,8 @@ def train_model(
 
     model.to(device)
 
-    return (
-        model,
-        train_losses,
-        val_losses
-    )
+    return (model, train_losses, val_losses)
+
 
 def predict_model(model, data_loader):
 
@@ -300,18 +246,15 @@ def predict_model(model, data_loader):
 
             output = model(X_batch)
 
-            predictions.append(
-                output.cpu().numpy()
-            )
+            predictions.append(output.cpu().numpy())
 
-            actuals.append(
-                y_batch.numpy()
-            )
+            actuals.append(y_batch.numpy())
 
     predictions = np.concatenate(predictions, axis=0)
     actuals = np.concatenate(actuals, axis=0)
 
     return predictions, actuals
+
 
 def set_seed(seed=42):
 
@@ -322,40 +265,27 @@ def set_seed(seed=42):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+
 def create_model(model_name):
 
     if model_name == "MLP":
 
-        model = MLPModel(
-            seq_len=24,
-            input_size=12
-        )
+        model = MLPModel(seq_len=24, input_size=12)
 
     elif model_name == "LSTM":
 
-        model = LSTMModel(
-            input_size=12,
-            hidden_size=64
-        )
+        model = LSTMModel(input_size=12, hidden_size=64)
 
     elif model_name == "GRU":
 
-        model = GRUModel(
-            input_size=12,
-            hidden_size=64
-        )
+        model = GRUModel(input_size=12, hidden_size=64)
 
     elif model_name == "BiLSTM":
 
         # Düzeltilmiş BiLSTM kullanılıyor
-        model = BiLSTMModelCorrected(
-            input_size=12,
-            hidden_size=64
-        )
+        model = BiLSTMModelCorrected(input_size=12, hidden_size=64)
 
     else:
-        raise ValueError(
-            f"Bilinmeyen model: {model_name}"
-        )
+        raise ValueError(f"Bilinmeyen model: {model_name}")
 
     return model.to(device)

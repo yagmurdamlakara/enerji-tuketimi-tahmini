@@ -1,6 +1,6 @@
 # Temiz veri üzerinde modellerin yeniden eğitimi
 
-Colab: https://colab.research.google.com/github/yagmurdamlakara/enerji-tuketimi-tahmini/blob/feat/clean-data-model-rerun/clean_data_models_colab.ipynb
+Colab: https://colab.research.google.com/github/yagmurdamlakara/enerji-tuketimi-tahmini/blob/main/clean_data_models_colab.ipynb
 
 T4 GPU seçin, hücreleri sırayla çalıştırın. Ham dosyanın Drive yolunu veri
 hücresinde ayarlayın veya açılan pencereden household_power_consumption.txt yükleyin.
@@ -65,8 +65,9 @@ hesaplanmalıdır. Bu görev baseline karşılaştırmasını henüz yapmaz.
 
 Çıktı dizini boş olmalıdır; önceki deneyin dosyaları üzerine yazılmaz.
 Kesinti halinde tamamlanan seed çıktıları kalır; otomatik devam özelliği yoktur.
-Tam rapor sadece 20 deney tamamlandığında üretilir. Eğitim sonuçları henüz
-üretilmemiştir; ön işleme sayıları model başarımı değildir.
+Tam rapor sadece 20 deney tamamlandığında üretilir. Tamamlanma durumu ilgili
+koşunun run_summary.json dosyasından kontrol edilir; ön işleme sayıları model
+başarımı değildir.
 
 Yerel çalıştırma (numpy, pandas, scikit-learn, joblib, torch gerekir):
 

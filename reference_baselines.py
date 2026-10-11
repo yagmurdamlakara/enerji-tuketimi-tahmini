@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-
 RAW_COLUMNS = [
     "Global_active_power",
     "Global_reactive_power",
@@ -59,10 +58,14 @@ def parse_args() -> argparse.Namespace:
         help="Directory for the metrics, predictions, and audit summary.",
     )
     selection = parser.add_mutually_exclusive_group(required=True)
-    selection.add_argument("--test-targets", type=Path,
-                           help="CSV of the actual model evaluation targets.")
-    selection.add_argument("--cleaned-ratio", action="store_true",
-                           help="Explicitly use a NEW cleaned-data 70/15/15 split.")
+    selection.add_argument(
+        "--test-targets", type=Path, help="CSV of the actual model evaluation targets."
+    )
+    selection.add_argument(
+        "--cleaned-ratio",
+        action="store_true",
+        help="Explicitly use a NEW cleaned-data 70/15/15 split.",
+    )
     return parser.parse_args()
 
 
@@ -117,8 +120,12 @@ def load_and_prepare_hourly(data_path: Path) -> tuple[pd.DataFrame, dict[str, An
     hourly = hourly_all.loc[keep_hour].copy()
     hourly[TARGET] = hourly["Global_active_power"] * 1.0
 
+    if hourly.empty:
+        raise ValueError("No hours satisfy the 60-minute validity rule.")
     if hourly.isna().any().any():
         raise AssertionError("Missing values remain after the 60-minute hourly filter.")
+    if not np.isfinite(hourly.to_numpy()).all():
+        raise ValueError("Hourly measurements contain infinite values.")
 
     # This is a diagnostic assertion, not a row cut or a correction.
     if len(hourly) != EXPECTED_HOURLY_ROWS:
@@ -175,12 +182,12 @@ def add_exact_references(
     for method, lag_hours in METHOD_LAGS.items():
         reference_timestamps = target_timestamps - pd.Timedelta(hours=lag_hours)
         records[f"{method}_reference_timestamp"] = reference_timestamps
-        records[f"{method}_prediction_kwh"] = (
-            actual.reindex(reference_timestamps).to_numpy()
+        records[f"{method}_prediction_kwh"] = actual.reindex(
+            reference_timestamps
+        ).to_numpy()
+        records[f"{method}_history_available"] = (
+            records[f"{method}_prediction_kwh"].notna().to_numpy()
         )
-        records[f"{method}_history_available"] = records[
-            f"{method}_prediction_kwh"
-        ].notna().to_numpy()
 
     return records.reset_index()
 
@@ -202,8 +209,10 @@ def summarize_metrics(
     continuity_invalid_count = int(candidate_count - continuity_valid_count)
 
     if predictions["actual_kwh"].isna().any():
-        raise ValueError("Some supplied test targets are absent from cleaned data; "
-                         "do not silently alter the model evaluation set.")
+        raise ValueError(
+            "Some supplied test targets are absent from cleaned data; "
+            "do not silently alter the model evaluation set."
+        )
     rows = []
     evaluated_by_method: dict[str, np.ndarray] = {}
     for method in METHOD_LAGS:
@@ -242,15 +251,23 @@ def summarize_metrics(
     common_true = predictions.loc[common, "actual_kwh"].to_numpy(dtype=float)
     common_rows = []
     for method in METHOD_LAGS:
-        common_pred = predictions.loc[
-            common, f"{method}_prediction_kwh"
-        ].to_numpy(dtype=float)
+        common_pred = predictions.loc[common, f"{method}_prediction_kwh"].to_numpy(
+            dtype=float
+        )
         common_rows.append(
             {
                 "method": method,
                 "common_evaluated_targets": int(common.sum()),
-                "MAE_kWh": float(mean_absolute_error(common_true, common_pred)) if len(common_true) else float("nan"),
-                "RMSE_kWh": float(np.sqrt(mean_squared_error(common_true, common_pred))) if len(common_true) else float("nan"),
+                "MAE_kWh": (
+                    float(mean_absolute_error(common_true, common_pred))
+                    if len(common_true)
+                    else float("nan")
+                ),
+                "RMSE_kWh": (
+                    float(np.sqrt(mean_squared_error(common_true, common_pred)))
+                    if len(common_true)
+                    else float("nan")
+                ),
                 "R2": safe_r2(common_true, common_pred),
             }
         )
@@ -298,10 +315,14 @@ def main() -> None:
             raise ValueError("CSV must contain a nonempty target_timestamp column.")
         target_timestamps = pd.DatetimeIndex(
             pd.to_datetime(supplied["target_timestamp"], errors="raise"),
-            name="target_timestamp")
+            name="target_timestamp",
+        )
         if target_timestamps.hasnans or target_timestamps.has_duplicates:
             raise ValueError("Test target timestamps must be valid and unique.")
-        if not target_timestamps.is_monotonic_increasing or target_timestamps.tz is not None:
+        if (
+            not target_timestamps.is_monotonic_increasing
+            or target_timestamps.tz is not None
+        ):
             raise ValueError("Use chronological, timezone-naive dataset timestamps.")
         actual = hourly[TARGET].reindex(target_timestamps)
         if actual.isna().any():
@@ -309,8 +330,11 @@ def main() -> None:
         if "actual_kwh" in supplied:
             expected = pd.to_numeric(supplied["actual_kwh"], errors="raise").to_numpy()
             if not np.isfinite(expected).all() or not np.allclose(
-                    actual.to_numpy(), expected, rtol=1e-5, atol=1e-6):
-                raise ValueError("Model true targets differ from cleaned target values.")
+                actual.to_numpy(), expected, rtol=1e-5, atol=1e-6
+            ):
+                raise ValueError(
+                    "Model true targets differ from cleaned target values."
+                )
         test_df = hourly.loc[target_timestamps].copy()
         split_description = "explicit model target timestamps from CSV"
         comparison_note = "Aligned to supplied CSV; caller must supply the actual model evaluation targets."
@@ -338,7 +362,9 @@ def main() -> None:
             "split_rule": split_description,
             "test_targets_file": str(args.test_targets) if args.test_targets else None,
             "train_rows": train_end if args.cleaned_ratio else None,
-            "validation_rows": validation_end - train_end if args.cleaned_ratio else None,
+            "validation_rows": (
+                validation_end - train_end if args.cleaned_ratio else None
+            ),
             "test_targets_total": int(len(test_df)),
             "test_start": str(test_df.index.min()),
             "test_end": str(test_df.index.max()),
@@ -390,8 +416,7 @@ def main() -> None:
     print(f"Test targets   : {len(test_df):,}")
     print(f"Test period    : {test_df.index.min()} → {test_df.index.max()}")
     print(
-        "Continuous test targets: "
-        f"{metric_audit['continuity_valid_test_targets']:,}"
+        "Continuous test targets: " f"{metric_audit['continuity_valid_test_targets']:,}"
     )
     print(
         "Discontinuous test targets: "
@@ -406,4 +431,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
